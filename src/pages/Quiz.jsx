@@ -1,20 +1,14 @@
 // ════════════════════════════════════════════════
-//  FILE: src/pages/Quiz.jsx  (UPDATED — with timer)
-//  PURPOSE: Active quiz question view
-//
-//  Timer behaviour:
-//  • 20-second countdown per question
-//  • Timer stops when user selects an answer
-//  • Timer hits 0 → auto-selects "TIME'S UP"
-//    which counts as wrong, then shows Next button
-//  • Timer resets when Next is clicked
+//  FILE: src/pages/Quiz.jsx  (UPDATED)
+//  PURPOSE: Active question view — now shows
+//           subject + year label for JAMB questions
 // ════════════════════════════════════════════════
 import React, { useCallback } from "react";
 import { ProgressBar, AnswerButton, DiffBadge } from "../components/QuizUI";
 import TimerRing from "../components/TimerRing";
 import { useTimer } from "../hooks/useTimer";
 
-const SECONDS_PER_QUESTION = 20;
+const SECONDS = 20;
 
 export default function Quiz({
   questions,
@@ -23,62 +17,65 @@ export default function Quiz({
   onAnswer,
   onNext,
 }) {
-  const currentQuestion = questions[currentIndex];
-  const isAnswered      = lockedAnswer !== null;
-  const isLast          = currentIndex === questions.length - 1;
+  const q          = questions[currentIndex];
+  const isAnswered = lockedAnswer !== null;
+  const isLast     = currentIndex === questions.length - 1;
 
-  // When timer hits 0, auto-answer with null (counts as wrong)
   const handleTimeUp = useCallback(() => {
     if (!isAnswered) onAnswer("__TIMEOUT__");
   }, [isAnswered, onAnswer]);
 
-  const { timeLeft, pct, color, resetTimer, stopTimer } = useTimer(
-    SECONDS_PER_QUESTION,
-    handleTimeUp
-  );
+  const { timeLeft, pct, color, resetTimer, stopTimer } = useTimer(SECONDS, handleTimeUp);
 
-  // Stop timer when user picks an answer
   const handleSelect = (opt) => {
     if (isAnswered) return;
     stopTimer();
     onAnswer(opt);
   };
 
-  // Reset timer when going to next question
   const handleNext = () => {
     resetTimer();
     onNext();
   };
 
-  // Visual status per option
   const getStatus = (opt) => {
     if (!isAnswered) return null;
-    if (opt === currentQuestion.correct_answer) return "correct";
-    if (opt === lockedAnswer) return "wrong";
+    if (opt === q.correct_answer) return "correct";
+    if (opt === lockedAnswer)     return "wrong";
     return "dim";
   };
+
+  // Detect if this is a JAMB question (has year in category string)
+  const isJamb = q.year !== null && q.year !== undefined;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
 
-        {/* Header: logo + difficulty + timer */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <span className="text-2xl font-extrabold" style={{ fontFamily: "'Syne',sans-serif" }}>
             Wizer<span className="text-[#C8F135]">Quiz</span>
           </span>
           <div className="flex items-center gap-3">
-            <DiffBadge difficulty={currentQuestion.difficulty} />
-            <TimerRing timeLeft={timeLeft} pct={pct} color={color} total={SECONDS_PER_QUESTION} />
+            {/* JAMB badge */}
+            {isJamb && (
+              <span className="text-xs font-mono px-3 py-1 rounded-full
+                               bg-[#C8F135]/10 border border-[#C8F135]/40 text-[#C8F135]">
+                JAMB {q.year}
+              </span>
+            )}
+            <DiffBadge difficulty={q.difficulty} />
+            <TimerRing timeLeft={timeLeft} pct={pct} color={color} total={SECONDS} />
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <ProgressBar current={currentIndex + 1} total={questions.length} />
 
-        {/* Category */}
+        {/* Category / Subject label */}
         <p className="text-xs text-gray-500 font-mono uppercase tracking-widest mb-3">
-          {currentQuestion.category}
+          {q.category}
         </p>
 
         {/* Question card */}
@@ -87,22 +84,25 @@ export default function Quiz({
           className="bg-[#111122] border border-[#2A2A4A] rounded-2xl px-6 py-8 mb-6"
           style={{ animation: "fadeUp 0.35s ease forwards" }}
         >
-          <p className="text-xl md:text-2xl font-semibold text-white leading-snug"
-             style={{ fontFamily: "'Syne',sans-serif" }}>
-            {currentQuestion.question}
+          <p
+            className="text-xl md:text-2xl font-semibold text-white leading-snug"
+            style={{ fontFamily: "'Syne',sans-serif" }}
+          >
+            {q.question}
           </p>
         </div>
 
         {/* Timeout banner */}
         {lockedAnswer === "__TIMEOUT__" && (
-          <div className="mb-4 bg-red-900/40 border border-red-700 text-red-300 rounded-xl px-4 py-3 text-sm text-center font-mono">
-            ⏰ Time's up! The correct answer was highlighted in green.
+          <div className="mb-4 bg-red-900/40 border border-red-700 text-red-300
+                          rounded-xl px-4 py-3 text-sm text-center font-mono">
+            ⏰ Time's up! The correct answer is highlighted in green.
           </div>
         )}
 
         {/* Answer options */}
         <div className="space-y-3 mb-6">
-          {currentQuestion.options.map((opt, i) => (
+          {q.options.map((opt, i) => (
             <AnswerButton
               key={opt}
               option={opt}
@@ -114,13 +114,13 @@ export default function Quiz({
           ))}
         </div>
 
-        {/* Next button — only after answering */}
+        {/* Next button */}
         {isAnswered && (
           <button
             onClick={handleNext}
-            className="w-full bg-[#C8F135] hover:bg-[#d6f55a] active:bg-[#9FBF1A] text-[#0D0D0D]
-                       font-extrabold text-lg py-4 rounded-xl transition-all duration-200
-                       hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full bg-[#C8F135] hover:bg-[#d6f55a] active:bg-[#9FBF1A]
+                       text-[#0D0D0D] font-extrabold text-lg py-4 rounded-xl
+                       transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
             style={{ fontFamily: "'Syne',sans-serif", animation: "fadeUp 0.3s ease forwards" }}
           >
             {isLast ? "See Results →" : "Next Question →"}

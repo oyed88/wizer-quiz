@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════
-//  FILE: src/App.jsx  (UPDATED — with auth gate)
-//
-//  Flow:
-//    Not logged in → Auth screens (login/signup/forgot/reset)
-//    Logged in     → Quiz app (home/loading/quiz/results)
+//  FILE: src/App.jsx  (UPDATED)
+//  CHANGES:
+//  1. "history" added as a valid screen
+//  2. timerSeconds passed from settings to Quiz
+//  3. onGoHistory passed to Home and Results
 // ════════════════════════════════════════════════
 import React from "react";
 import { useAuth }  from "./hooks/useAuth";
@@ -13,20 +13,20 @@ import Home    from "./pages/Home";
 import Loading from "./pages/Loading";
 import Quiz    from "./pages/Quiz";
 import Results from "./pages/Results";
+import History from "./pages/History";
 
-// ── Background grid texture ───────────────────────
 function GridBg() {
   return (
     <div className="fixed inset-0 pointer-events-none opacity-[0.025]"
          style={{
            backgroundImage:
-             "linear-gradient(#C8F135 1px,transparent 1px),linear-gradient(90deg,#C8F135 1px,transparent 1px)",
+             "linear-gradient(#C8F135 1px,transparent 1px)," +
+             "linear-gradient(90deg,#C8F135 1px,transparent 1px)",
            backgroundSize: "40px 40px",
          }} />
   );
 }
 
-// ── Auth wrapper (centred card layout) ────────────
 function AuthWrapper({ children }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
@@ -37,7 +37,7 @@ function AuthWrapper({ children }) {
 
 export default function App() {
   const auth = useAuth();
-  const quiz = useQuiz();
+  const quiz = useQuiz(auth.user); // pass user so scores can be saved
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white"
@@ -90,10 +90,12 @@ export default function App() {
         {/* ════ LOGGED IN → Quiz app ════ */}
         {auth.user && (
           <>
-            {/* Top nav bar showing logged-in user */}
-            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between
-                            px-6 py-3 bg-[#0D0D0D]/80 backdrop-blur border-b border-[#1A1A2E]">
-              <span className="font-extrabold text-lg" style={{ fontFamily: "'Syne',sans-serif" }}>
+            {/* Top nav */}
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center
+                            justify-between px-6 py-3 bg-[#0D0D0D]/80
+                            backdrop-blur border-b border-[#1A1A2E]">
+              <span className="font-extrabold text-lg"
+                    style={{ fontFamily: "'Syne',sans-serif" }}>
                 Wizer<span className="text-[#C8F135]">Quiz</span>
               </span>
               <div className="flex items-center gap-3">
@@ -102,26 +104,31 @@ export default function App() {
                 </span>
                 <button
                   onClick={auth.handleLogOut}
-                  className="text-xs font-mono border border-[#2A2A4A] hover:border-red-500
-                             hover:text-red-400 text-gray-400 px-3 py-1.5 rounded-lg transition-colors"
+                  className="text-xs font-mono border border-[#2A2A4A]
+                             hover:border-red-500 hover:text-red-400
+                             text-gray-400 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Log out
                 </button>
               </div>
             </nav>
 
-            {/* Quiz screens with top padding for nav */}
+            {/* Screens */}
             <div className="pt-14">
+
               {quiz.screen === "home" && (
                 <Home
                   settings={quiz.settings}
                   onUpdate={quiz.updateSettings}
                   onStart={quiz.startQuiz}
+                  onGoHistory={() => quiz.goToScreen("history")}
                   error={quiz.error}
                   userName={auth.user.name}
                 />
               )}
+
               {quiz.screen === "loading" && <Loading />}
+
               {quiz.screen === "quiz" && (
                 <Quiz
                   questions={quiz.questions}
@@ -129,20 +136,30 @@ export default function App() {
                   lockedAnswer={quiz.lockedAnswer}
                   onAnswer={quiz.handleAnswer}
                   onNext={quiz.handleNext}
+                  timerSeconds={quiz.settings.timerSeconds}
                 />
               )}
+
               {quiz.screen === "results" && (
                 <Results
                   score={quiz.score}
                   questions={quiz.questions}
                   selectedAnswers={quiz.selectedAnswers}
                   onRestart={quiz.restart}
+                  onGoHistory={() => quiz.goToScreen("history")}
                 />
               )}
+
+              {quiz.screen === "history" && (
+                <History
+                  user={auth.user}
+                  onBack={() => quiz.goToScreen("home")}
+                />
+              )}
+
             </div>
           </>
         )}
-
       </div>
     </div>
   );

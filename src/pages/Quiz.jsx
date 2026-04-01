@@ -1,14 +1,12 @@
 // ════════════════════════════════════════════════
 //  FILE: src/pages/Quiz.jsx  (UPDATED)
-//  PURPOSE: Active question view — now shows
-//           subject + year label for JAMB questions
+//  CHANGE: passes settings.timerSeconds to useTimer
+//  instead of the hardcoded constant SECONDS = 20
 // ════════════════════════════════════════════════
 import React, { useCallback } from "react";
 import { ProgressBar, AnswerButton, DiffBadge } from "../components/QuizUI";
 import TimerRing from "../components/TimerRing";
 import { useTimer } from "../hooks/useTimer";
-
-const SECONDS = 20;
 
 export default function Quiz({
   questions,
@@ -16,6 +14,7 @@ export default function Quiz({
   lockedAnswer,
   onAnswer,
   onNext,
+  timerSeconds = 20,   // ← comes from settings.timerSeconds
 }) {
   const q          = questions[currentIndex];
   const isAnswered = lockedAnswer !== null;
@@ -25,7 +24,8 @@ export default function Quiz({
     if (!isAnswered) onAnswer("__TIMEOUT__");
   }, [isAnswered, onAnswer]);
 
-  const { timeLeft, pct, color, resetTimer, stopTimer } = useTimer(SECONDS, handleTimeUp);
+  const { timeLeft, pct, color, resetTimer, stopTimer } =
+    useTimer(timerSeconds, handleTimeUp);
 
   const handleSelect = (opt) => {
     if (isAnswered) return;
@@ -45,9 +45,6 @@ export default function Quiz({
     return "dim";
   };
 
-  // Detect if this is a JAMB question (has year in category string)
-  const isJamb = q.year !== null && q.year !== undefined;
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
@@ -58,36 +55,33 @@ export default function Quiz({
             Wizer<span className="text-[#C8F135]">Quiz</span>
           </span>
           <div className="flex items-center gap-3">
-            {/* JAMB badge */}
-            {isJamb && (
+            {q.year && (
               <span className="text-xs font-mono px-3 py-1 rounded-full
                                bg-[#C8F135]/10 border border-[#C8F135]/40 text-[#C8F135]">
                 JAMB {q.year}
               </span>
             )}
             <DiffBadge difficulty={q.difficulty} />
-            <TimerRing timeLeft={timeLeft} pct={pct} color={color} total={SECONDS} />
+            <TimerRing timeLeft={timeLeft} pct={pct} color={color} total={timerSeconds} />
           </div>
         </div>
 
         {/* Progress */}
         <ProgressBar current={currentIndex + 1} total={questions.length} />
 
-        {/* Category / Subject label */}
+        {/* Category */}
         <p className="text-xs text-gray-500 font-mono uppercase tracking-widest mb-3">
           {q.category}
         </p>
 
-        {/* Question card */}
+        {/* Question */}
         <div
           key={currentIndex}
           className="bg-[#111122] border border-[#2A2A4A] rounded-2xl px-6 py-8 mb-6"
           style={{ animation: "fadeUp 0.35s ease forwards" }}
         >
-          <p
-            className="text-xl md:text-2xl font-semibold text-white leading-snug"
-            style={{ fontFamily: "'Syne',sans-serif" }}
-          >
+          <p className="text-xl md:text-2xl font-semibold text-white leading-snug"
+             style={{ fontFamily: "'Syne',sans-serif" }}>
             {q.question}
           </p>
         </div>
@@ -100,7 +94,7 @@ export default function Quiz({
           </div>
         )}
 
-        {/* Answer options */}
+        {/* Answers */}
         <div className="space-y-3 mb-6">
           {q.options.map((opt, i) => (
             <AnswerButton

@@ -1,12 +1,8 @@
 // ════════════════════════════════════════════════
-//  FILE: src/hooks/useTimer.js
-//  PURPOSE: Per-question countdown timer
-//
-//  Usage in Quiz.jsx:
-//    const { timeLeft, resetTimer } = useTimer(20, onTimeUp);
-//    - seconds: time allowed per question (default 20)
-//    - onTimeUp: called when timer hits 0
-//    - resetTimer(): call when moving to next question
+//  FILE: src/hooks/useTimer.js  (UPDATED)
+//  CHANGE: seconds param now comes from settings
+//  instead of being hardcoded to 20.
+//  Usage: const timer = useTimer(settings.timerSeconds, onTimeUp)
 // ════════════════════════════════════════════════
 import { useState, useEffect, useRef, useCallback } from "react";
 
@@ -15,7 +11,13 @@ export function useTimer(seconds = 20, onTimeUp) {
   const [active, setActive]     = useState(true);
   const intervalRef             = useRef(null);
 
-  // Tick every second
+  // Reset when seconds changes (new question or new game)
+  useEffect(() => {
+    setTimeLeft(seconds);
+    setActive(true);
+  }, [seconds]);
+
+  // Countdown tick
   useEffect(() => {
     if (!active) return;
     intervalRef.current = setInterval(() => {
@@ -32,23 +34,21 @@ export function useTimer(seconds = 20, onTimeUp) {
     return () => clearInterval(intervalRef.current);
   }, [active, onTimeUp]);
 
-  // Call this when moving to the next question
+  // Call when moving to next question
   const resetTimer = useCallback(() => {
     clearInterval(intervalRef.current);
     setTimeLeft(seconds);
     setActive(true);
   }, [seconds]);
 
-  // Call this to freeze the timer (after answer selected)
+  // Call when answer is selected — freeze the timer
   const stopTimer = useCallback(() => {
     clearInterval(intervalRef.current);
     setActive(false);
   }, []);
 
-  // Percentage remaining for ring animation
   const pct = (timeLeft / seconds) * 100;
 
-  // Color: green → yellow → red
   const color =
     pct > 50 ? "#4ade80" :
     pct > 25 ? "#facc15" :

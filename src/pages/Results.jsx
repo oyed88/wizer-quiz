@@ -1,8 +1,7 @@
 // ════════════════════════════════════════════════
 //  FILE: src/pages/Results.jsx  (UPDATED)
-//  PURPOSE: Final score screen — now shows
-//           subject breakdown for JAMB mode and
-//           a motivational JAMB-specific message
+//  CHANGE: Added "View History" button so users
+//  can jump straight to their score history
 // ════════════════════════════════════════════════
 import React, { useState } from "react";
 import { ScoreDonut } from "../components/QuizUI";
@@ -12,59 +11,54 @@ export default function Results({
   questions,
   selectedAnswers,
   onRestart,
+  onGoHistory,
 }) {
   const [showReview, setShowReview] = useState(false);
-  const total   = questions.length;
-  const pct     = total > 0 ? Math.round((score / total) * 100) : 0;
-  const isJamb  = questions[0]?.year !== null && questions[0]?.year !== undefined;
+  const total  = questions.length;
+  const pct    = total > 0 ? Math.round((score / total) * 100) : 0;
+  const isJamb = questions[0]?.year != null;
 
-  // JAMB-specific motivational message
   const jambMessage =
     pct >= 70 ? "🏆 Excellent! You're on track to ace JAMB!" :
-    pct >= 50 ? "👍 Good effort! Keep practicing daily." :
+    pct >= 50 ? "👍 Good effort! Keep practising daily." :
     pct >= 30 ? "💪 You're getting there. Review your weak areas." :
-                "📖 More practice needed. Don't give up!";
+                "📖 More practice needed — don't give up!";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-xl">
 
         {/* Header */}
-        <h1
-          className="text-center text-3xl font-extrabold text-white mb-2"
-          style={{ fontFamily: "'Syne',sans-serif" }}
-        >
+        <h1 className="text-center text-3xl font-extrabold text-white mb-2"
+            style={{ fontFamily: "'Syne',sans-serif" }}>
           Wizer<span className="text-[#C8F135]">Quiz</span> — Results
         </h1>
         {isJamb && (
-          <p className="text-center text-gray-500 text-sm font-mono mb-6">
+          <p className="text-center text-gray-500 text-sm font-mono mb-4">
             JAMB / WAEC Practice Session
           </p>
         )}
 
-        {/* Score donut */}
+        {/* Donut */}
         <div className="bg-[#111122] border border-[#2A2A4A] rounded-2xl p-8 text-center mb-4">
           <ScoreDonut score={score} total={total} />
-
-          {/* JAMB motivational message */}
           {isJamb && (
-            <p className="mt-4 text-sm font-body text-gray-400 bg-[#1A1A2E]
-                          rounded-xl px-4 py-3 border border-[#2A2A4A]">
+            <p className="mt-4 text-sm text-gray-400 bg-[#1A1A2E] rounded-xl
+                          px-4 py-3 border border-[#2A2A4A]">
               {jambMessage}
             </p>
           )}
         </div>
 
-        {/* JAMB breakdown — how many correct vs wrong */}
+        {/* JAMB stat boxes */}
         {isJamb && (
           <div className="grid grid-cols-3 gap-3 mb-4">
             {[
-              { label: "Correct",   value: score,         color: "text-green-400", bg: "bg-green-900/20 border-green-800" },
-              { label: "Wrong",     value: total - score, color: "text-red-400",   bg: "bg-red-900/20 border-red-800" },
-              { label: "Score",     value: `${pct}%`,     color: "text-[#C8F135]", bg: "bg-[#C8F135]/10 border-[#C8F135]/30" },
-            ].map((s) => (
-              <div key={s.label}
-                   className={`rounded-xl border p-4 text-center ${s.bg}`}>
+              { label: "Correct", value: score,         color: "text-green-400", bg: "bg-green-900/20 border-green-800" },
+              { label: "Wrong",   value: total - score, color: "text-red-400",   bg: "bg-red-900/20 border-red-800" },
+              { label: "Score",   value: `${pct}%`,     color: "text-[#C8F135]", bg: "bg-[#C8F135]/10 border-[#C8F135]/30" },
+            ].map(s => (
+              <div key={s.label} className={`rounded-xl border p-4 text-center ${s.bg}`}>
                 <p className={`text-2xl font-extrabold ${s.color}`}
                    style={{ fontFamily: "'Syne',sans-serif" }}>
                   {s.value}
@@ -75,8 +69,8 @@ export default function Results({
           </div>
         )}
 
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        {/* Action buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <button
             onClick={onRestart}
             className="flex-1 bg-[#C8F135] hover:bg-[#d6f55a] text-[#0D0D0D]
@@ -88,24 +82,33 @@ export default function Results({
           <button
             onClick={() => setShowReview(v => !v)}
             className="flex-1 border border-[#2A2A4A] hover:border-[#C8F135]
-                       text-gray-300 hover:text-[#C8F135] font-bold py-4 rounded-xl transition-all"
+                       text-gray-300 hover:text-[#C8F135] font-bold py-4
+                       rounded-xl transition-all"
             style={{ fontFamily: "'Syne',sans-serif" }}
           >
             {showReview ? "Hide Review" : "Review Answers"}
           </button>
         </div>
 
+        {/* View History button */}
+        <button
+          onClick={onGoHistory}
+          className="w-full border border-[#2A2A4A] hover:border-[#C8F135]/50
+                     text-gray-500 hover:text-[#C8F135] py-3 rounded-xl
+                     transition-all text-sm font-mono mb-6"
+        >
+          📊 View My Score History & Leaderboard
+        </button>
+
         {/* Answer review */}
         {showReview && (
           <div className="space-y-4">
             {selectedAnswers.map((a, i) => (
-              <div
-                key={i}
-                className={`rounded-xl border p-5
-                  ${a.isCorrect
-                    ? "border-green-700 bg-green-900/20"
-                    : "border-red-700 bg-red-900/20"}`}
-              >
+              <div key={i}
+                   className={`rounded-xl border p-5
+                     ${a.isCorrect
+                       ? "border-green-700 bg-green-900/20"
+                       : "border-red-700 bg-red-900/20"}`}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-mono text-gray-500">Q{i + 1}</p>
                   {a.year && (
@@ -126,7 +129,7 @@ export default function Results({
                   </div>
                   {!a.isCorrect && (
                     <div className="flex gap-2 flex-wrap">
-                      <span className="text-gray-500">Correct answer:</span>
+                      <span className="text-gray-500">Correct:</span>
                       <span className="text-green-400">{a.correct}</span>
                     </div>
                   )}

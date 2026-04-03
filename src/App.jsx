@@ -1,19 +1,21 @@
 // ════════════════════════════════════════════════
-//  FILE: src/App.jsx  (UPDATED)
+//  FILE: src/App.jsx  (FIREBASE VERSION)
 //  CHANGES:
-//  1. "history" added as a valid screen
-//  2. timerSeconds passed from settings to Quiz
-//  3. onGoHistory passed to Home and Results
+//  — Uses Firebase useAuth (real accounts)
+//  — Admin Dashboard screen added
+//  — Shows admin button in nav for admin user
+//  — appReady state prevents flash of login screen
 // ════════════════════════════════════════════════
 import React from "react";
-import { useAuth }  from "./hooks/useAuth";
-import { useQuiz }  from "./hooks/useQuiz";
-import { LoginForm, SignUpForm, ForgotPasswordForm, ResetPasswordForm } from "./components/AuthForm";
-import Home    from "./pages/Home";
-import Loading from "./pages/Loading";
-import Quiz    from "./pages/Quiz";
-import Results from "./pages/Results";
-import History from "./pages/History";
+import { useAuth }   from "./hooks/useAuth";
+import { useQuiz }   from "./hooks/useQuiz";
+import { LoginForm, SignUpForm, ForgotPasswordForm } from "./components/AuthForm";
+import Home           from "./pages/Home";
+import Loading        from "./pages/Loading";
+import Quiz           from "./pages/Quiz";
+import Results        from "./pages/Results";
+import History        from "./pages/History";
+import AdminDashboard, { isAdmin } from "./pages/AdminDashboard";
 
 function GridBg() {
   return (
@@ -27,81 +29,94 @@ function GridBg() {
   );
 }
 
-function AuthWrapper({ children }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">{children}</div>
-    </div>
-  );
-}
-
 export default function App() {
   const auth = useAuth();
-  const quiz = useQuiz(auth.user); // pass user so scores can be saved
+  const quiz = useQuiz(auth.user);
+
+  // Wait for Firebase to check if the user is already logged in
+  if (!auth.appReady) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#C8F135] border-t-transparent
+                        rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white"
          style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <GridBg />
-
       <div className="relative z-10">
 
         {/* ════ NOT LOGGED IN → Auth screens ════ */}
         {!auth.user && (
-          <AuthWrapper>
-            {auth.authScreen === "login" && (
-              <LoginForm
-                onLogin={auth.handleLogIn}
-                onGoSignUp={() => auth.setAuthScreen("signup")}
-                onGoForgot={() => auth.setAuthScreen("forgot")}
-                error={auth.error}
-                loading={auth.loading}
-              />
-            )}
-            {auth.authScreen === "signup" && (
-              <SignUpForm
-                onSignUp={auth.handleSignUp}
-                onGoLogin={() => auth.setAuthScreen("login")}
-                error={auth.error}
-                loading={auth.loading}
-              />
-            )}
-            {auth.authScreen === "forgot" && (
-              <ForgotPasswordForm
-                onSubmit={auth.handleForgotPassword}
-                onGoLogin={() => auth.setAuthScreen("login")}
-                error={auth.error}
-                message={auth.message}
-                loading={auth.loading}
-              />
-            )}
-            {auth.authScreen === "reset" && (
-              <ResetPasswordForm
-                onSubmit={auth.handleResetPassword}
-                onGoLogin={() => auth.setAuthScreen("login")}
-                prefillToken={auth.resetData.token}
-                error={auth.error}
-                message={auth.message}
-              />
-            )}
-          </AuthWrapper>
+          <div className="min-h-screen flex items-center justify-center px-4 py-12">
+            <div className="w-full max-w-md">
+
+              {auth.authScreen === "login" && (
+                <LoginForm
+                  onLogin={auth.handleLogIn}
+                  onGoSignUp={() => auth.setAuthScreen("signup")}
+                  onGoForgot={() => auth.setAuthScreen("forgot")}
+                  error={auth.error}
+                  loading={auth.loading}
+                />
+              )}
+
+              {auth.authScreen === "signup" && (
+                <SignUpForm
+                  onSignUp={auth.handleSignUp}
+                  onGoLogin={() => auth.setAuthScreen("login")}
+                  error={auth.error}
+                  loading={auth.loading}
+                />
+              )}
+
+              {auth.authScreen === "forgot" && (
+                <ForgotPasswordForm
+                  onSubmit={auth.handleForgotPassword}
+                  onGoLogin={() => auth.setAuthScreen("login")}
+                  error={auth.error}
+                  message={auth.message}
+                  loading={auth.loading}
+                />
+              )}
+            </div>
+          </div>
         )}
 
         {/* ════ LOGGED IN → Quiz app ════ */}
         {auth.user && (
           <>
-            {/* Top nav */}
+            {/* Top Nav */}
             <nav className="fixed top-0 left-0 right-0 z-50 flex items-center
                             justify-between px-6 py-3 bg-[#0D0D0D]/80
                             backdrop-blur border-b border-[#1A1A2E]">
-              <span className="font-extrabold text-lg"
+              <span className="font-extrabold text-lg cursor-pointer"
+                    onClick={() => quiz.goToScreen("home")}
                     style={{ fontFamily: "'Syne',sans-serif" }}>
                 Wizer<span className="text-[#C8F135]">Quiz</span>
               </span>
-              <div className="flex items-center gap-3">
+
+              <div className="flex items-center gap-2">
                 <span className="text-gray-400 text-sm hidden sm:block">
                   👋 {auth.user.name}
                 </span>
+
+                {/* Admin button — only visible to admin */}
+                {isAdmin(auth.user) && (
+                  <button
+                    onClick={() => quiz.goToScreen("admin")}
+                    className="text-xs font-mono border border-[#C8F135]/40
+                               hover:border-[#C8F135] text-[#C8F135]/70
+                               hover:text-[#C8F135] px-3 py-1.5 rounded-lg
+                               transition-colors"
+                  >
+                    📊 Admin
+                  </button>
+                )}
+
                 <button
                   onClick={auth.handleLogOut}
                   className="text-xs font-mono border border-[#2A2A4A]
@@ -152,6 +167,13 @@ export default function App() {
 
               {quiz.screen === "history" && (
                 <History
+                  user={auth.user}
+                  onBack={() => quiz.goToScreen("home")}
+                />
+              )}
+
+              {quiz.screen === "admin" && (
+                <AdminDashboard
                   user={auth.user}
                   onBack={() => quiz.goToScreen("home")}
                 />

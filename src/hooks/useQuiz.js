@@ -1,12 +1,27 @@
 // ════════════════════════════════════════════════
-//  FILE: src/hooks/useQuiz.js  (UPDATED)
-//  CHANGES:
-//  1. Settings now include timerSeconds (adjustable)
-//  2. Score history saved to localStorage per user
-//  3. getHistory() and clearHistory() helpers added
+//  FILE: src/hooks/useQuiz.js  (FIREBASE VERSION)
+//  REPLACES: the localStorage-based useQuiz.js
+//
+//  Changes from localStorage version:
+//  — Scores saved to Firestore instead of localStorage
+//  — Leaderboard reads from Firestore (real users)
+//  — getHistory() and getLeaderboard() fetch from Firestore
 // ════════════════════════════════════════════════
 import { useState, useCallback } from "react";
-import { getQuestions } from "../services/triviaApi";
+import { getQuestions }          from "../services/triviaApi";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  doc,
+  updateDoc,
+  increment,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../services/firebase";
 
 // ── Helpers ───────────────────────────────────────
 function decodeHTML(str) {
@@ -23,61 +38,62 @@ function shuffle(arr) {
   return a;
 }
 
-// ── Score History Helpers ─────────────────────────
-const HISTORY_KEY = (userEmail) => `wizerquiz_history_${userEmail}`;
+// ── Firestore Score Helpers ───────────────────────
 
-export function saveScore(userEmail, entry) {
+// Save a score to Firestore under scores/{uid}/entries
+export async function saveScoreToFirestore(uid, userName, entry) {
   try {
-    const key = HISTORY_KEY(userEmail);
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    const updated = [entry, ...existing].slice(0, 50); // keep last 50
-    localStorage.setItem(key, JSON.stringify(updated));
-  } catch (e) {
-    console.error("Failed to save score", e);
+    // 1. Add the score entry
+    await addDoc(collection(db, "scores", uid, "entries"), {
+      ...entry,
+      userName,
+      createdAt: serverTimestamp(),
+    });
+
+    // 2. Update the user's total quiz count and best score
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, {
+      totalQuizzes: increment(1),
+      lastSeen:     serverTimestamp(),
+    });
+
+    // 3. Add to the global leaderboard collection
+    await addDoc(collection(db, "leaderboard"), {
+      uid,
+      userName,
+      ...entry,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Failed to save score to Firestore:", err);
   }
 }
 
-export function getHistory(userEmail) {
+// Fetch a user's last 50 scores from Firestore
+export async function getHistoryFromFirestore(uid) {
   try {
-    const key = HISTORY_KEY(userEmail);
-    return JSON.parse(localStorage.getItem(key) || "[]");
+    const q = query(
+      collection(db, "scores", uid, "entries"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch {
     return [];
   }
 }
 
-export function clearHistory(userEmail) {
-  localStorage.removeItem(HISTORY_KEY(userEmail));
-}
-
-// ── Leaderboard Helpers ───────────────────────────
-const LEADERBOARD_KEY = "wizerquiz_leaderboard";
-
-export function updateLeaderboard(userName, userEmail, entry) {
+// Fetch top 100 from the global leaderboard
+export async function getLeaderboardFromFirestore() {
   try {
-    const board = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
-    const newEntry = {
-      name:       userName,
-      email:      userEmail,
-      score:      entry.score,
-      total:      entry.total,
-      pct:        entry.pct,
-      subject:    entry.subject,
-      mode:       entry.mode,
-      date:       entry.date,
-    };
-    const updated = [newEntry, ...board]
-      .sort((a, b) => b.pct - a.pct)  // sort by percentage descending
-      .slice(0, 100);                  // keep top 100
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error("Failed to update leaderboard", e);
-  }
-}
-
-export function getLeaderboard() {
-  try {
-    return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
+    const q = query(
+      collection(db, "leaderboard"),
+      orderBy("pct", "desc"),
+      limit(100)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch {
     return [];
   }
@@ -85,33 +101,30 @@ export function getLeaderboard() {
 
 // ── Initial State ─────────────────────────────────
 const INIT = {
-  screen: "home",         // "home" | "loading" | "quiz" | "results"
+  screen: "home",
   questions: [],
   currentIndex: 0,
   selectedAnswers: [],
   score: 0,
   error: null,
   settings: {
-    mode:         "general",   // "general" | "jamb"
+    mode:         "general",
     amount:       10,
     category:     0,
     difficulty:   "",
     type:         "multiple",
     subject:      "mathematics",
-    timerSeconds: 20,          // ← NEW: adjustable timer (10–60 seconds)
+    timerSeconds: 20,
   },
 };
 
-// ── Hook ──────────────────────────────────────────
+// ── Main Hook ─────────────────────────────────────
 export function useQuiz(user) {
   const [state, setState]         = useState(INIT);
   const [lockedAnswer, setLocked] = useState(null);
 
   const updateSettings = useCallback((patch) => {
-    setState(prev => ({
-      ...prev,
-      settings: { ...prev.settings, ...patch },
-    }));
+    setState(prev => ({ ...prev, settings: { ...prev.settings, ...patch } }));
   }, []);
 
   const startQuiz = useCallback(async (settings) => {
@@ -127,11 +140,11 @@ export function useQuiz(user) {
           decodeHTML(q.correct_answer),
         ]),
         difficulty: q.difficulty,
-        category:   q.subject
+        category: q.subject
           ? `${q.subject.toUpperCase()} — ${q.year || ""}`
           : decodeHTML(q.category || ""),
-        type: q.type || "multiple",
-        year: q.year || null,
+        type:  q.type || "multiple",
+        year:  q.year || null,
       }));
       setState(prev => ({
         ...prev,
@@ -166,19 +179,18 @@ export function useQuiz(user) {
   const handleNext = useCallback(() => {
     setLocked(null);
     setState(prev => {
-      const next = prev.currentIndex + 1;
+      const next        = prev.currentIndex + 1;
       const goToResults = next >= prev.questions.length;
 
-      // ── Save score to history & leaderboard when quiz ends ──
       if (goToResults && user) {
-        const pct = Math.round(((prev.score + (prev.selectedAnswers.length > prev.currentIndex &&
-          prev.selectedAnswers[prev.currentIndex]?.isCorrect ? 0 : 0)) /
-          prev.questions.length) * 100);
+        const finalScore = prev.score;
+        const total      = prev.questions.length;
+        const pct        = Math.round((finalScore / total) * 100);
 
         const entry = {
-          score:      prev.score,
-          total:      prev.questions.length,
-          pct:        Math.round((prev.score / prev.questions.length) * 100),
+          score:      finalScore,
+          total,
+          pct,
           mode:       prev.settings.mode,
           subject:    prev.settings.mode === "jamb" ? prev.settings.subject : "General",
           difficulty: prev.settings.difficulty || "any",
@@ -186,8 +198,8 @@ export function useQuiz(user) {
           date:       new Date().toISOString(),
         };
 
-        saveScore(user.email, entry);
-        updateLeaderboard(user.name, user.email, entry);
+        // Save to Firestore (async, fire and forget)
+        saveScoreToFirestore(user.uid, user.name, entry);
       }
 
       return {
